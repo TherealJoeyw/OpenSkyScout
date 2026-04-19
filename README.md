@@ -156,6 +156,7 @@ Full open source firmware replacement targeting the original ARM920T hardware:
 - **Object descriptions**: updated text from current sources
 - **SD card**: database stored on SD, updateable via PC tool or phone app
 - **USB**: database sync tool, compatible with original connector
+- **Telescope interface**: NexStar serial protocol (already supported in hardware)
 
 ### Toolchain
 
