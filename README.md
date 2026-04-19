@@ -50,6 +50,7 @@ The GPS chip uses a proprietary variant of the Motorola OnCore binary protocol (
 - SkyScout→GPS: `@@Oi` (heartbeat), `@@Ot` (config), `@@Oa` (start/stop)
 - **Week rollover bug**: chip outputs week 358 instead of 2406, causing the device to display ~September 2006
 
+Confirmed via the hidden debug menu (press GPS button): current reported date is **September 3rd 2006**.
 
 ---
 
@@ -404,4 +405,87 @@ Max page size capped at 0x200 (512 bytes). Waits 10 seconds for response.
 1. `flashCmd` — sends total firmware size, initiates write
 2. `burnPageCmd` × N — sends 512-byte pages sequentially
 3. Device verifies CRC and reboots
+
+
+---
+
+## Firmware Files (.CEL format)
+
+The original firmware files were hosted at `http://software.celestron.com/updates/SkyScout/EN/` and have been preserved. The directory listing format (`firmware.dir`) is:
+
+```
+@filename, version, date, filesize_bytes
+Release notes...
+```
+
+Known firmware versions:
+| File | Version | Date | Notes |
+|------|---------|------|-------|
+| SkyScout_013022EN.cel | 1.30.22 | 2008-06-05 | 50,000+ objects, NGC/Caldwell/Herschel400 catalogues |
+| SkyScout_020210EN.cel | 2.2.10 | 2010-11-30 | Current release for v2 units |
+| SkyScout_030216EN.cel | 3.2.16 | 2010-11-30 | First release for v3 units |
+
+### CEL File Format
+
+Magic: `RS` (2 bytes) + version `01 00` (2 bytes), then 3 file entries, padded to 0x200 bytes, followed by file data.
+
+Each entry header contains: `[2][2][date 18 chars][4: unknown][4: CRC32][4: size_bytes][4: unknown]`
+
+Files packed in order:
+1. `DATA_RW.bin` — initialised read-write data (~4KB)
+2. `CODE_RO.bin` — ARM firmware code (~676KB)
+3. `NVDataBase.bin` — star/object database (~29MB)
+
+Use `tools/parse_cel.py` to extract.
+
+---
+
+## Firmware Analysis (CODE_RO.bin, v1.30.22)
+
+Analysed with Ghidra, ARM v4, little endian, 32-bit, base address `0x30010000`.
+
+### Key findings
+
+**996 functions** identified by Ghidra auto-analysis.
+
+**Original source files** (paths embedded in binary):
+- `..\\src\\SkyScout.cpp` — main application
+- `..\\src\\visualmenu.cpp` — UI/menu system
+- `../../SkyUtil/src/SkyVector.h` — vector math library
+
+**Year selector strings** (the UI date entry limit):
+- Located at `0x300af890` — `0x300af8c2`
+- Hardcoded array: `"2005"`, `"2006"`, ... `"2015"` (11 entries, 5 bytes each with null)
+- **Simple binary patch**: replace with `"2024"` through `"2034"` to fix manual date entry
+- Followed immediately by timezone offsets `-12` through `+12`
+
+**Julian date library**:
+- `"Years prior to 1600 are not supported"` at `0x300ab7a5`
+- `"time offsets not supported in JulianDates"` at `0x3006025e`
+- Date math is not limited to 2005-2015 — only the UI spinner is
+
+**Key function addresses**:
+- `0x3001b4f2` — GPS initialisation (`"Initializing GPS..."`)
+- `0x3001b1fe` — Database initialisation (`"Initializing NVDataBase..."`)
+- `0x3001b2ee` — USB initialisation (`"Initializing USB..."`)
+- `0x30034fe2` — SkyDBLib deserialise entry point
+- `0x30035002` — SkyDBLib search init
+- `0x3001a5ae` — debug shell `hwrtc` command (RTC get/set)
+- `0x30012bc2` — NAND flash read (`"flash read failure, block/page: %d/%d"`)
+
+**Debug shell commands** (accessible via UART TP16/17/18 at 9600 8N1):
+- `hwrtc [-g] | [-s <yyyy.m.d.h.m.s>]` — get/set hardware RTC
+- `sensorscan [sensprnum]` — scan sensors
+- `resetUSBshell` — reset USB shell mode
+- `gpsfix` / `gpsstop` — GPS control
+- Full command list in hardware/notes.md
+
+### Quick fix path
+
+The minimum viable fix for the date entry problem is a binary patch to CODE_RO.bin:
+1. Replace year strings at `0x300af890` with `2024\x002025\x002026\x002027\x002028\x002029\x002030\x002031\x002032\x002033\x002034\x00`
+2. Repack into CEL format using `tools/parse_cel.py` in reverse
+3. Flash via USB using `flashCmd`/`burnPageCmd` protocol
+
+This preserves the original firmware entirely except for the year range.
 
