@@ -50,7 +50,7 @@ The GPS chip uses a proprietary variant of the Motorola OnCore binary protocol (
 - SkyScout→GPS: `@@Oi` (heartbeat), `@@Ot` (config), `@@Oa` (start/stop)
 - **Week rollover bug**: chip outputs week 358 instead of 2406, causing the device to display ~September 2006
 
-Confirmed via the hidden debug menu (press GPS button): current reported date is **September 3rd 2006**.
+Confirmed via the GPS debug menu (press GPS button): current reported date is **September 3rd 2006**.
 
 ---
 
@@ -108,7 +108,7 @@ Reverse engineered from `SkyScout.dll` (Celestron SkyScout CD, 2006, archived at
 ### Notes on USB behaviour
 
 - The device accepts **one USB session per power cycle**. Reconnecting after the first session causes firmware crashes.
-- The device **pushes unsolicited data** on EP_IN after connecting (battery level sent without being requested).
+- The device **pushes unsolicited data** on EP_IN after connecting (what appears to be battery level sent without being requested).
 - `getFlashCmd` (0x16) returns a 10-byte ack for some payload formats but has not yet yielded actual flash data. Payload format is still being determined.
 - Commands that cause crashes: anything sent after the device has already responded to one session.
 
@@ -116,7 +116,7 @@ Reverse engineered from `SkyScout.dll` (Celestron SkyScout CD, 2006, archived at
 
 ## Debug Menu
 
-A hidden debug menu is accessible by pressing the **GPS button** on the main screen. It displays:
+A debug menu is accessible by pressing the **GPS button** on the main screen. It displays:
 
 - GPS coordinates (lat/lon)
 - Elevation
@@ -155,7 +155,7 @@ Full open source firmware replacement targeting the original ARM920T hardware:
 - **Object descriptions**: updated text from current sources
 - **SD card**: database stored on SD, updateable via PC tool or phone app
 - **USB**: database sync tool, compatible with original connector
-- **Telescope interface**: NexStar serial protocol (already supported in hardware)
+- **Telescope interface**: NexStar serial protocol and other (already supported in hardware)
 
 ### Toolchain
 
