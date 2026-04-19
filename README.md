@@ -50,7 +50,7 @@ The GPS chip uses a proprietary variant of the Motorola OnCore binary protocol (
 - SkyScout→GPS: `@@Oi` (heartbeat), `@@Ot` (config), `@@Oa` (start/stop)
 - **Week rollover bug**: chip outputs week 358 instead of 2406, causing the device to display ~September 2006
 
-Confirmed via the hidden debug menu (press GPS button): current reported date is **September 3rd 2006**.
+Confirmed via the GPS debug menu (press GPS button): current reported date is **September 3rd 2006**.
 
 ---
 
