@@ -50,7 +50,6 @@ The GPS chip uses a proprietary variant of the Motorola OnCore binary protocol (
 - SkyScout→GPS: `@@Oi` (heartbeat), `@@Ot` (config), `@@Oa` (start/stop)
 - **Week rollover bug**: chip outputs week 358 instead of 2406, causing the device to display ~September 2006
 
-Confirmed via the GPS debug menu (press GPS button): current reported date is **September 3rd 2006**.
 
 ---
 
@@ -107,16 +106,18 @@ Reverse engineered from `SkyScout.dll` (Celestron SkyScout CD, 2006, archived at
 
 ### Notes on USB behaviour
 
-- The device accepts **one USB session per power cycle**. Reconnecting after the first session causes firmware crashes.
-- The device **pushes unsolicited data** on EP_IN after connecting (what appears to be battery level sent without being requested).
-- `getFlashCmd` (0x16) returns a 10-byte ack for some payload formats but has not yet yielded actual flash data. Payload format is still being determined.
-- Commands that cause crashes: anything sent after the device has already responded to one session.
+- The device has a **persistent response queue** that survives power cycles. On each new connection it replays all responses from previous sessions in FIFO order before delivering the current response. The queue appears to be stored in the USB controller or a ring buffer in NAND.
+- To get the response to the current command, always take the **last non-empty response** in the queue.
+- The device responds to commands only while on the **GPS acquiring screen** at boot. Once it moves to the main menu USB commands are ignored.
+- Each command generates **two responses** — the data response and an ack packet (`00 01 00 00 00 0a 00 01 XX 02`).
+- `getFlashCmd` (0x16) blocks all subsequent commands in the same session — do not send it until payload format is confirmed.
+- Sending commands too rapidly causes misaligned responses. Allow at least 500ms between commands.
 
 ---
 
 ## Debug Menu
 
-A debug menu is accessible by pressing the **GPS button** on the main screen. It displays:
+A hidden debug menu is accessible by pressing the **GPS button** on the main screen. It displays:
 
 - GPS coordinates (lat/lon)
 - Elevation
@@ -155,7 +156,6 @@ Full open source firmware replacement targeting the original ARM920T hardware:
 - **Object descriptions**: updated text from current sources
 - **SD card**: database stored on SD, updateable via PC tool or phone app
 - **USB**: database sync tool, compatible with original connector
-- **Telescope interface**: NexStar serial protocol and other (already supported in hardware)
 
 ### Toolchain
 
@@ -179,6 +179,8 @@ See [`tools/`](tools/) for all reverse engineering and communication scripts.
 | `listen.py` | Pure listener — connects and logs all unsolicited device output |
 | `poke.py` | Packet format experiments (size, layout variants) |
 | `dump.py` | Firmware dump tool — reads NAND flash via getFlashCmd (0x16) |
+| `singlecmd.py` | Sends a single command and reads all queued responses — use to test individual commands |
+| `flashtest.py` | Multi-command session tester with flush and alignment investigation |
 
 ### Requirements
 
@@ -194,7 +196,7 @@ Linux: `echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="19b4", ATTR{idProduct}=="0002",
 
 ## Known Issues / Open Questions
 
-- [ ] `getFlashCmd` (0x16) payload confirmed: 4 bytes (page_addr LE uint16 + page_num LE uint16), response 14 bytes — dump tool written, needs testing
+- [ ] `getFlashCmd` (0x16) payload confirmed as 4 bytes (page_addr LE uint16 + page_num LE uint16) from DLL disassembly, but command blocks all subsequent USB commands in session — likely requires specific device state or prior handshake not yet identified
 - [ ] `getSensorVectors` (0x37) and `getTemperature` (0x35) not responding — may need specific payload
 - [ ] JTAG pins not yet located on PCB
 - [ ] Hardware differences between 1.x, 2.x and 3.x board revisions not documented
@@ -332,6 +334,35 @@ the address/length encoding may need adjustment.
 
 Part of the SkyScout open source revival project. See the original reverse 
 engineering thread: https://www.cloudynights.com/forums/topic/471626-skyhack-things-you-shouldnt-be-doing-with-celestrons-skyscout/
+
+
+---
+
+## Sensor Data Format
+
+All responses are 10 bytes:
+
+| Offset | Size | Field |
+|--------|------|-------|
+| 0x00 | 1 | Command echo (byte 0 = command sent) |
+| 0x01 | 3 | zeros |
+| 0x04 | 1 | unknown (0x00) |
+| 0x05 | 1 | marker (always 0x0a) |
+| 0x06 | 2 | data0 (uint16 LE) |
+| 0x08 | 2 | data1 (uint16 LE) |
+
+Known response values (from live device, GPS acquiring screen):
+
+| Command | Byte 0 | data0 | data1 | Notes |
+|---------|--------|-------|-------|-------|
+| getOrientation (0x38) | 0x38 | ~381 | ~617 | varies with pointing direction |
+| getBatteryLevel (0x34) | 0x34 | ~485 | ~548 | ADC readings |
+| getSensorVectors (0x37) | 0x37 | ~310 | ~405 | raw mag/accel |
+| getTemperature (0x35) | 0x35 | ~478 | ~722 | raw ADC |
+| getDACOffset (0x6f) | 0x6f | ~456 | ~680 | calibration values |
+| versionCmd (0x01) | 0x01 | ~380 | ~1020 | firmware version |
+
+Each command also generates an ack: `00 01 00 00 00 0a 00 01 XX 02` where XX increments per session.
 
 ---
 

@@ -81,12 +81,15 @@ def send_recv(dev, cmd, payload=b'', read_size=64, timeout=TIMEOUT_MS):
         raise
 
 def verify_connection(dev):
-    """Send versionCmd and verify device responds"""
-    resp = send_recv(dev, 0x01)
-    if resp and len(resp) >= 6 and resp[5] == 0x0a:
-        print(f"  Device responding (version response: {resp.hex()})")
-        return True
-    print(f"  WARNING: unexpected version response: {resp.hex() if resp else 'none'}")
+    """Send versionCmd and verify device responds, retrying a few times"""
+    for attempt in range(5):
+        resp = send_recv(dev, 0x01, timeout=2000)
+        if resp and len(resp) >= 6 and resp[5] == 0x0a:
+            print(f"  Device responding (version response: {resp.hex()})")
+            return True
+        print(f"  Attempt {attempt+1}: no response, retrying...")
+        time.sleep(1)
+    print(f"  WARNING: device not responding to version command")
     return False
 
 def read_page(dev, page_addr, page_num):
@@ -131,7 +134,7 @@ def dump(dev, outfile, num_pages, start_page=0):
             bar = '#' * (pct // 2) + '.' * (50 - pct // 2)
             print(f"\r  [{bar}] {pct}% page {page_num} ({dumped} bytes)", end='', flush=True)
 
-            time.sleep(0.02)  # don't hammer the device
+            time.sleep(0.5)  # device needs time between commands
 
     print(f"\n\nDone. {dumped} bytes written, {errors} errors.")
     if errors:
@@ -157,9 +160,6 @@ def main():
 
     dev = open_device()
     print(f"Connected: Celestron SkyScout (VID={VENDOR_ID:04x} PID={PRODUCT_ID:04x})")
-
-    print("Verifying connection...")
-    verify_connection(dev)
 
     dump(dev, outfile, num_pages, start_page)
 
