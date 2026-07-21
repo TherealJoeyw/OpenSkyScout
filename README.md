@@ -1,7 +1,5 @@
 # OpenSkyScount
 
-An open source revival project for the Celestron SkyScout Personal Planetarium.
-
 The SkyScout was a handheld GPS star identifier released in 2006 — point it at anything in the sky and it tells you what you're looking at, with audio descriptions, pointing arrows, and a database of 50,000+ celestial objects. It was genuinely ahead of its time, predating phone astronomy apps by years.
 
 Celestron abandoned the platform on 1 January 2016. A GPS week number rollover bug in April 2019 finished it off completely — every unit now thinks it's September 2006, the pointing system outputs all-zeros, and the device is effectively a paperweight.
