@@ -1,4 +1,4 @@
-# OpenSkyScout - (this project has been shelved, feel free to fork and continue the work)
+# OpenSkyScout - (this project has been shelved indefinitely, feel free to fork and continue the work)
 
 The SkyScout was a handheld GPS star identifier released in 2006 — point it at anything in the sky and it tells you what you're looking at, with audio descriptions, pointing arrows, and a database of 50,000+ celestial objects. It was genuinely ahead of its time, predating phone astronomy apps by years.
 
